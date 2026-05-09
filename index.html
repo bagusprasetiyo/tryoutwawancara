@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Try Out Mental Ideologi</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  
+  <!-- Babel untuk JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Firebase (Versi Compat/CDN) -->
+  <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore-compat.js"></script>
+  
+  <style>
+    /* Custom Scrollbar */
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #fca5a5; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #ef4444; }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // =========================================================================
+    // ⚠️ PENTING: GANTI KONFIGURASI INI DENGAN FIREBASE PROJECT ANDA SENDIRI!
+    // =========================================================================
+    // Deteksi otomatis jika berjalan di Canvas/Preview, maka gunakan config bawaan.
+    // Jika tidak, gunakan konfigurasi placeholder ini yang harus Anda isi jika di-hosting di luar.
+    const firebaseConfig = typeof __firebase_config !== 'undefined' 
+      ? JSON.parse(__firebase_config) 
+      : {
+          apiKey: "KODE_API_KEY_ANDA_DISINI",
+          authDomain: "NAMA_PROJECT_ANDA.firebaseapp.com",
+          projectId: "NAMA_PROJECT_ANDA",
+          storageBucket: "NAMA_PROJECT_ANDA.appspot.com",
+          messagingSenderId: "SENDER_ID_ANDA",
+          appId: "APP_ID_ANDA"
+        };
+
+    const appIdStr = typeof __app_id !== 'undefined' ? __app_id : "mental-ideologi-app";
+
+    // Inisialisasi Firebase
+    if (!firebase.apps.length) {
+      // Cegah inisialisasi jika API key masih placeholder
+      if(firebaseConfig.apiKey !== "KODE_API_KEY_ANDA_DISINI") {
+        firebase.initializeApp(firebaseConfig);
+      }
+    }
+    
+    // Fallback object jika Firebase gagal diinisialisasi karena API key kosong
+    const auth = firebase.apps.length ? firebase.auth() : null;
+    const db = firebase.apps.length ? firebase.firestore() : null;
+
+    // Path Database (Otomatis menyesuaikan dengan Canvas rules)
+    const USERS_PATH = `artifacts/${appIdStr}/public/data/users`;
+    const RESULTS_PATH = `artifacts/${appIdStr}/public/data/results`;
+
+    // --- Constants ---
+    const QUESTIONS = [
+      "Bagaimana pendapatmu tentang amandemen pasal UUD 1945?",
+      "Bagaimana pendapatmu jika memilih pemimpin tidak harus beragama Islam?",
+      "Bagaimana pendapatmu tentang toleransi di Indonesia?",
+      "Bagaimana pendapatmu tentang RUU tentang kebebasan memiliki kepercayaan dan kaitannya dengan paham PKI?",
+      "Bagaimana pendapatmu tentang aliran garis keras keagamaan di Indonesia?",
+      "Bagaimana pendapatmu jika ada seseorang yang kakeknya dulu adalah anggota PKI kemudian dia mendaftar TNI, apakah boleh dan jelaskan alasannya?",
+      "Bagaimana cara mengatasi narkotika?",
+      "Bagaimana pendapatmu tentang pernikahan siri?",
+      "Bagaimana pendapatmu tentang pembangunan infrastruktur di Indonesia yang kurang merata?",
+      "Momen paling menyenangkan dan menyedihkanmu apa?",
+      "Apakah kamu pernah berhubungan dengan Hukum?",
+      "Bagaimana cara kamu refreshing ketika sendiri dan bersama teman, jelaskan masing-masing!",
+      "Bagaimana pendapatmu tentang aksi demo tentang kenaikan harga BBM?",
+      "Bagaimana pendapatmu ketika Indonesia berhubungan dengan Negara yang berpaham komunis seperti China?",
+      "Bagaimana pendapatmu tentang TAP MPR tentang PKI yang akan dicabut?",
+      "Bagaimana pendapatmu tentang kebijakan lockdown saat COVID 19 setiap daerah yang berbeda beda?",
+      "Bagaimana langkah konkret sebagai umat beragama yang baik sebagai wujud sikap toleransi?"
+    ];
+
+    // --- Components ---
+    const Button3D = ({ children, onClick, className = "", disabled = false, variant = "primary" }) => {
+      const baseStyle = "font-bold py-3 px-6 rounded-xl transition-all duration-150 relative top-0 flex items-center justify-center gap-2";
+      const variants = {
+        primary: "bg-red-600 text-white shadow-[0_5px_0_#991b1b] active:shadow-[0_0px_0_#991b1b] active:top-[5px]",
+        secondary: "bg-white text-red-600 border-2 border-red-200 shadow-[0_5px_0_#fca5a5] active:shadow-[0_0px_0_#fca5a5] active:top-[5px]",
+        disabled: "bg-gray-400 text-gray-200 shadow-[0_5px_0_#4b5563] cursor-not-allowed"
+      };
+      return (
+        <button onClick={disabled ? undefined : onClick} className={`${baseStyle} ${disabled ? variants.disabled : variants[variant]} ${className}`} disabled={disabled}>
+          {children}
+        </button>
+      );
+    };
+
+    const Card = ({ children, className = "" }) => (
+      <div className={`bg-white rounded-2xl shadow-2xl border-t-4 border-red-500 p-6 md:p-8 ${className}`}>
+        {children}
+      </div>
+    );
+
+    // --- Main App ---
+    function App() {
+      const [firebaseUser, setFirebaseUser] = useState(null);
+      const [currentUser, setCurrentUser] = useState(null); 
+      const [view, setView] = useState('login'); 
+      const [isLoading, setIsLoading] = useState(true);
+      const [allUsers, setAllUsers] = useState([]);
+      const [allResults, setAllResults] = useState([]);
+      const [hasConfigError, setHasConfigError] = useState(false);
+
+      useEffect(() => {
+        if (!auth) {
+          setHasConfigError(true);
+          setIsLoading(false);
+          return;
+        }
+
+        const initAuth = async () => {
+          try {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+              await auth.signInWithCustomToken(__initial_auth_token);
+            } else {
+              await auth.signInAnonymously();
+            }
+          } catch (err) {
+            console.error("Auth error:", err);
+            setIsLoading(false);
+          }
+        };
+
+        initAuth();
+
+        const unsubscribe = auth.onAuthStateChanged((user) => {
+          setFirebaseUser(user);
+          setIsLoading(false);
+        });
+        return () => unsubscribe();
+      }, []);
+
+      useEffect(() => {
+        if (!firebaseUser || !db) return;
+        
+        // Cek jika API Key Firebase masih bawaan saat di-hosting mandiri
+        if(firebaseConfig.apiKey === "KODE_API_KEY_ANDA_DISINI") {
+            alert("PERHATIAN: Anda belum memasukkan Konfigurasi Firebase Anda di dalam file index.html! Database tidak akan berfungsi.");
+        }
+
+        const unsubUsers = db.collection(USERS_PATH).onSnapshot((snap) => {
+          const users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          setAllUsers(users);
+          
+          setCurrentUser(prevUser => {
+            if (prevUser && prevUser.role !== 'admin') {
+              const updatedMe = users.find(u => u.username === prevUser.username);
+              if (updatedMe) {
+                if (updatedMe.status === 'approved' && view === 'pending') setView('instructions');
+                return updatedMe;
+              }
+            }
+            return prevUser;
+          });
+        }, err => console.error(err));
+
+        const unsubResults = db.collection(RESULTS_PATH).onSnapshot((snap) => {
+          setAllResults(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        }, err => console.error(err));
+
+        return () => { unsubUsers(); unsubResults(); };
+      }, [firebaseUser, view]);
+
+      const handleLogin = async (username, password) => {
+        setIsLoading(true);
+        if (username === 'admin123' && password === '123') {
+          setCurrentUser({ username: 'admin', role: 'admin', status: 'approved' });
+          setView('admin');
+          setIsLoading(false);
+          return;
+        }
+
+        let userDoc = allUsers.find(u => u.username === username);
+        if (userDoc) {
+          if (userDoc.password === password) {
+            setCurrentUser(userDoc);
+            setView(userDoc.status === 'approved' ? 'instructions' : 'pending');
+          } else {
+            alert("Password salah!");
+          }
+        } else {
+          const id = crypto.randomUUID();
+          const newUser = { id, username, password, role: 'user', status: 'pending', createdAt: new Date().toISOString() };
+          try {
+            await db.collection(USERS_PATH).doc(id).set(newUser);
+            setCurrentUser(newUser);
+            setView('pending');
+          } catch(e) {
+            console.error(e);
+            alert("Gagal register. Pastikan rules Firestore sudah diatur.");
+          }
+        }
+        setIsLoading(false);
+      };
+
+      const handleLogout = () => { setCurrentUser(null); setView('login'); };
+
+      if (hasConfigError) {
+        return (
+          <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+            <Card className="text-center max-w-lg">
+              <i className="fas fa-exclamation-triangle text-red-500 text-5xl mb-4"></i>
+              <h1 className="text-2xl font-bold text-gray-800 mb-2">Konfigurasi Firebase Hilang</h1>
+              <p className="text-gray-600">Anda harus mengubah `firebaseConfig` dengan API Key dari project Anda di file `index.html` ini sebelum meng-hostingnya.</p>
+            </Card>
+          </div>
+        );
+      }
+
+      return (
+        <div className="min-h-screen bg-gradient-to-b from-white to-red-200 text-slate-800 font-sans selection:bg-red-300">
+          <header className="bg-red-700 shadow-md border-b-4 border-red-800 sticky top-0 z-50">
+            <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="bg-white p-2 rounded-lg shadow-inner">
+                  <i className="fas fa-chart-line text-red-600 text-xl"></i>
+                </div>
+                <h1 className="text-white font-bold text-lg md:text-xl tracking-wide text-shadow-sm">
+                  Try Out Mental Ideologi
+                </h1>
+              </div>
+              {currentUser && (
+                <div className="flex items-center gap-4">
+                  <span className="text-red-100 hidden md:inline-block font-medium">Halo, {currentUser.username}</span>
+                  <button onClick={handleLogout} className="bg-red-800 hover:bg-red-900 text-white py-2 px-3 rounded-lg transition-colors" title="Keluar">
+                    <i className="fas fa-sign-out-alt"></i>
+                  </button>
+                </div>
+              )}
+            </div>
+          </header>
+
+          <main className="max-w-6xl mx-auto p-4 py-8 relative">
+            {isLoading && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/50 backdrop-blur-sm rounded-xl">
+                 <div className="bg-white p-4 rounded-xl shadow-xl flex items-center gap-3">
+                    <i className="fas fa-spinner fa-spin text-red-600 text-xl"></i>
+                    <span className="font-bold text-gray-700">Memproses sistem...</span>
+                 </div>
+              </div>
+            )}
+
+            {!isLoading && view === 'login' && <LoginView onLogin={handleLogin} />}
+            {!isLoading && view === 'admin' && <AdminDashboard users={allUsers} results={allResults} />}
+            {!isLoading && view === 'pending' && <PendingView />}
+            {!isLoading && view === 'instructions' && <InstructionsView onStart={() => setView('device')} />}
+            {!isLoading && view === 'device' && <DeviceCheckView onReady={() => setView('interview')} />}
+            {!isLoading && view === 'interview' && <InterviewSession currentUser={currentUser} onFinish={() => setView('finished')} />}
+            {!isLoading && view === 'finished' && <FinishedView />}
+          </main>
+        </div>
+      );
+    }
+
+    // --- Views ---
+    function LoginView({ onLogin }) {
+      const [username, setUsername] = useState('');
+      const [password, setPassword] = useState('');
+      const submit = (e) => { e.preventDefault(); if(username && password) onLogin(username, password); };
+      return (
+        <div className="max-w-md mx-auto mt-10">
+          <Card className="text-center">
+            <div className="bg-red-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+              <i className="fas fa-user-check text-4xl text-red-600"></i>
+            </div>
+            <h2 className="text-2xl font-bold mb-2">Selamat Datang</h2>
+            <p className="text-gray-500 mb-8">Silakan masuk atau daftar otomatis jika akun baru.</p>
+            <form onSubmit={submit} className="space-y-4">
+              <div className="text-left">
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Username</label>
+                <input type="text" value={username} onChange={e => setUsername(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-red-500 outline-none" placeholder="Masukkan username" />
+              </div>
+              <div className="text-left mb-6">
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Password</label>
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-red-500 outline-none" placeholder="Masukkan password" />
+              </div>
+              <Button3D className="w-full" onClick={submit}>Masuk / Daftar <i className="fas fa-chevron-right ml-1"></i></Button3D>
+            </form>
+          </Card>
+        </div>
+      );
+    }
+
+    function AdminDashboard({ users, results }) {
+      const [tab, setTab] = useState('persetujuan');
+      const pendingUsers = users.filter(u => u.role === 'user' && u.status === 'pending');
+      const approvedUsers = users.filter(u => u.role === 'user' && u.status === 'approved');
+
+      const handleApprove = async (userId) => {
+        try { await db.collection(USERS_PATH).doc(userId).set({ status: 'approved' }, { merge: true }); }
+        catch (e) { alert("Gagal menyetujui user"); }
+      };
+
+      return (
+        <div className="space-y-6">
+          <div className="flex gap-4 border-b-2 border-red-200 pb-2">
+            <button onClick={() => setTab('persetujuan')} className={`px-4 py-2 font-bold rounded-t-lg ${tab === 'persetujuan' ? 'bg-red-600 text-white' : 'text-red-700 hover:bg-red-100'}`}>Persetujuan User</button>
+            <button onClick={() => setTab('hasil')} className={`px-4 py-2 font-bold rounded-t-lg ${tab === 'hasil' ? 'bg-red-600 text-white' : 'text-red-700 hover:bg-red-100'}`}>Hasil Wawancara</button>
+          </div>
+          {tab === 'persetujuan' && (
+            <Card>
+              <h2 className="text-xl font-bold mb-4"><i className="fas fa-user-check text-red-600 mr-2"></i> Daftar Tunggu Persetujuan</h2>
+              {pendingUsers.length === 0 ? <p className="text-gray-500 bg-gray-50 p-4 rounded">Kosong.</p> : (
+                <table className="w-full text-left border-collapse">
+                  <thead><tr className="bg-red-50 text-red-800"><th className="p-3">Username</th><th className="p-3">Aksi</th></tr></thead>
+                  <tbody>
+                    {pendingUsers.map(u => (
+                      <tr key={u.id} className="border-b"><td className="p-3 font-medium">{u.username}</td><td className="p-3"><Button3D onClick={() => handleApprove(u.id)} className="py-1 px-4 text-sm">Setujui</Button3D></td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <h2 className="text-xl font-bold mt-10 mb-4 text-gray-700">User Disetujui</h2>
+              <div className="flex flex-wrap gap-2">
+                {approvedUsers.map(u => <span key={u.id} className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">{u.username}</span>)}
+              </div>
+            </Card>
+          )}
+          {tab === 'hasil' && (
+            <Card>
+              <h2 className="text-xl font-bold mb-4"><i className="fas fa-file-alt text-red-600 mr-2"></i> Hasil Wawancara</h2>
+              {results.length === 0 ? <p className="text-gray-500 bg-gray-50 p-4 rounded">Belum ada hasil.</p> : (
+                <div className="space-y-6">
+                  {results.map((res, idx) => (
+                    <div key={idx} className="border-2 border-gray-200 rounded-xl p-4 bg-gray-50">
+                      <div className="flex justify-between items-center mb-4 border-b pb-2">
+                        <h3 className="font-bold text-lg text-red-700">User: {res.username}</h3>
+                        <span className="text-sm text-gray-500">{new Date(res.timestamp).toLocaleString('id-ID')}</span>
+                      </div>
+                      <div className="space-y-4 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
+                        {res.answers.map((ans, i) => (
+                          <div key={i} className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                            <p className="font-bold text-gray-800 text-sm mb-2">Q{ans.questionId + 1}: {QUESTIONS[ans.questionId]}</p>
+                            <div className="bg-blue-50 p-3 rounded text-sm text-blue-900 italic mb-2">"{ans.transcript || '(Tidak ada suara)'}"</div>
+                            <div className="flex justify-between text-xs font-semibold">
+                              <span className="text-gray-500">Durasi: {ans.duration} detik</span><span className="text-green-600">Skor: {ans.mockScore}/100</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          )}
+        </div>
+      );
+    }
+
+    function PendingView() {
+      return (
+        <Card className="max-w-lg mx-auto text-center mt-20">
+          <div className="bg-yellow-100 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
+            <i className="fas fa-exclamation-circle text-4xl text-yellow-600"></i>
+          </div>
+          <h2 className="text-2xl font-bold mb-4">Menunggu Persetujuan</h2>
+          <p className="text-gray-600 mb-8">Akun Anda sedang menunggu persetujuan dari Administrator. Halaman ini akan otomatis berganti jika telah disetujui.</p>
+          <i className="fas fa-spinner fa-spin text-red-400 text-3xl"></i>
+        </Card>
+      );
+    }
+
+    function InstructionsView({ onStart }) {
+      return (
+        <Card className="max-w-2xl mx-auto">
+          <h2 className="text-2xl font-bold mb-6 text-red-700 border-b-2 border-red-100 pb-4">Petunjuk Try Out</h2>
+          <ul className="space-y-4 mb-8 text-gray-700">
+            <li className="flex gap-3"><i className="fas fa-check-circle text-red-500 mt-1"></i> Wawancara dilaksanakan secara online.</li>
+            <li className="flex gap-3"><i className="fas fa-check-circle text-red-500 mt-1"></i> Waktu rekam maksimal 3 menit per pertanyaan.</li>
+            <li className="flex gap-3"><i className="fas fa-check-circle text-red-500 mt-1"></i> Suara akan ditranskrip secara real-time.</li>
+            <li className="flex gap-3"><i className="fas fa-check-circle text-red-500 mt-1"></i> Pastikan kamera & mikrofon siap digunakan.</li>
+          </ul>
+          <div className="flex justify-end"><Button3D onClick={onStart}>Cek Perangkat <i className="fas fa-chevron-right ml-1"></i></Button3D></div>
+        </Card>
+      );
+    }
+
+    function DeviceCheckView({ onReady }) {
+      const [cam, setCam] = useState('pending'), [mic, setMic] = useState('pending'), [err, setErr] = useState('');
+      const videoRef = useRef(null);
+      const check = async () => {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+          if(videoRef.current) videoRef.current.srcObject = stream;
+          setCam('ok'); setMic('ok'); setErr('');
+        } catch(e) { setCam('err'); setMic('err'); setErr('Akses ditolak atau perangkat tidak ditemukan.'); }
+      };
+      useEffect(() => { check(); return () => { if(videoRef.current?.srcObject) videoRef.current.srcObject.getTracks().forEach(t=>t.stop()); } }, []);
+      
+      return (
+        <Card className="max-w-2xl mx-auto">
+          <h2 className="text-2xl font-bold mb-6 text-center">Cek Perangkat Keras</h2>
+          <div className="flex flex-col md:flex-row gap-6 mb-8">
+            <div className="flex-1 bg-black rounded-xl aspect-video relative flex items-center justify-center">
+              <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover transform scale-x-[-1]" />
+              {cam !== 'ok' && <div className="absolute text-white text-center"><i className="fas fa-video-slash text-4xl text-red-500 mb-2"></i><br/>Off</div>}
+            </div>
+            <div className="flex-1 flex flex-col justify-center space-y-4">
+              <div className={`p-4 rounded border-2 ${cam==='ok'?'bg-green-50 border-green-200':'bg-red-50 border-red-200'}`}>Kamera: {cam==='ok'?'Siap':'Gagal'}</div>
+              <div className={`p-4 rounded border-2 ${mic==='ok'?'bg-green-50 border-green-200':'bg-red-50 border-red-200'}`}>Mikrofon: {mic==='ok'?'Siap':'Gagal'}</div>
+            </div>
+          </div>
+          {err && <div className="bg-red-100 text-red-800 p-3 rounded mb-6">{err}</div>}
+          <div className="flex justify-between">
+            <button onClick={check} className="text-red-600 font-bold"><i className="fas fa-sync-alt mr-1"></i> Cek Ulang</button>
+            <Button3D onClick={() => { if(videoRef.current?.srcObject) videoRef.current.srcObject.getTracks().forEach(t=>t.stop()); onReady(); }} disabled={cam!=='ok'}>Mulai Wawancara <i className="fas fa-play ml-1"></i></Button3D>
+          </div>
+        </Card>
+      );
+    }
+
+    function InterviewSession({ currentUser, onFinish }) {
+      const [q, setQ] = useState(0), [time, setTime] = useState(180), [rec, setRec] = useState(false);
+      const [txt, setTxt] = useState(''), [ans, setAns] = useState([]), [sub, setSub] = useState(false);
+      const videoRef = useRef(null), streamRef = useRef(null), recogRef = useRef(null), timerRef = useRef(null);
+
+      useEffect(() => {
+        navigator.mediaDevices.getUserMedia({video:true, audio:true}).then(s => {
+          streamRef.current = s; if(videoRef.current) videoRef.current.srcObject = s;
+        });
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if(SR) {
+          recogRef.current = new SR(); recogRef.current.continuous = true; recogRef.current.interimResults = true; recogRef.current.lang = 'id-ID';
+          recogRef.current.onresult = (e) => {
+            let final = ''; for(let i=e.resultIndex; i<e.results.length; ++i) if(e.results[i].isFinal) final += e.results[i][0].transcript + ' ';
+            if(final) setTxt(p => p + final);
+          };
+        }
+        return () => stopMedia();
+      }, []);
+
+      const stopMedia = () => { streamRef.current?.getTracks().forEach(t=>t.stop()); try{recogRef.current?.stop()}catch(e){} clearInterval(timerRef.current); };
+      
+      const startRec = () => {
+        setTxt(''); setTime(180); setRec(true);
+        try{recogRef.current?.start()}catch(e){}
+        timerRef.current = setInterval(() => { setTime(p => { if(p<=1) { nextQ(); return 0; } return p-1; }) }, 1000);
+      };
+
+      const nextQ = async () => {
+        clearInterval(timerRef.current); try{recogRef.current?.stop()}catch(e){} setRec(false);
+        const newAns = [...ans, { questionId: q, transcript: txt.trim()||"(Kosong)", duration: 180-time, mockScore: Math.floor(Math.random()*35)+60 }];
+        setAns(newAns);
+        if(q < QUESTIONS.length - 1) { setQ(p=>p+1); setTxt(''); setTime(180); }
+        else {
+          setSub(true); stopMedia();
+          await db.collection(RESULTS_PATH).doc(currentUser.id + '_' + Date.now()).set({ userId: currentUser.id, username: currentUser.username, answers: newAns, timestamp: new Date().toISOString() });
+          onFinish();
+        }
+      };
+
+      return (
+        <div className="max-w-4xl mx-auto relative">
+          {sub && <div className="absolute inset-0 z-20 flex justify-center items-center bg-white/80"><i className="fas fa-spinner fa-spin text-red-600 text-4xl"></i></div>}
+          <div className="bg-red-100 h-3 rounded-full mb-2"><div className="bg-red-600 h-full" style={{width:`${((q+1)/QUESTIONS.length)*100}%`}}></div></div>
+          <div className="text-right text-sm font-bold text-red-800 mb-6">Pertanyaan {q+1} / {QUESTIONS.length}</div>
+          <div className="flex flex-col md:flex-row gap-6">
+            <div className="md:w-1/3 bg-black rounded-xl aspect-[3/4] relative overflow-hidden">
+              <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover transform scale-x-[-1]" />
+              {rec && <div className="absolute top-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm font-bold"><span className="text-red-500 mr-1">●</span> REC</div>}
+              <div className="absolute bottom-4 w-full text-center"><span className="bg-black/70 text-white px-4 py-2 rounded-full font-mono text-xl">{Math.floor(time/60)}:{(time%60).toString().padStart(2,'0')}</span></div>
+            </div>
+            <Card className="md:w-2/3 flex flex-col">
+              <h3 className="text-xl font-bold mb-4 border-b pb-4">"{QUESTIONS[q]}"</h3>
+              <div className="flex-1 bg-red-50 p-4 rounded-xl min-h-[150px]"><p className="italic text-gray-700">{txt || (rec?"Mendengarkan...":"Klik Mulai Menjawab")}</p></div>
+              <div className="mt-6 flex justify-end">
+                {!rec ? <Button3D onClick={startRec}><i className="fas fa-microphone mr-2"></i> Mulai Menjawab</Button3D> : <Button3D variant="secondary" onClick={nextQ}>Selesai & Lanjut <i className="fas fa-chevron-right ml-2"></i></Button3D>}
+              </div>
+            </Card>
+          </div>
+        </div>
+      );
+    }
+
+    function FinishedView() {
+      return (
+        <Card className="max-w-lg mx-auto text-center mt-20">
+          <div className="bg-green-100 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6"><i className="fas fa-check-circle text-4xl text-green-600"></i></div>
+          <h2 className="text-2xl font-bold mb-4">Wawancara Selesai!</h2>
+          <p className="text-gray-600 mb-8">Data telah disimpan dan dikirim ke Admin.</p>
+          <Button3D onClick={() => window.location.reload()} className="mx-auto">Kembali ke Beranda</Button3D>
+        </Card>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
