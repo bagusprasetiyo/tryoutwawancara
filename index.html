@@ -1,513 +1,748 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Try Out Mental Ideologi</title>
-  
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  
-  <!-- Font Awesome Icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  
-  <!-- React & ReactDOM -->
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  
-  <!-- Babel untuk JSX -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-  <!-- Firebase (Versi Compat/CDN) -->
-  <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore-compat.js"></script>
-  
-  <style>
-    /* Custom Scrollbar */
-    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: #fca5a5; border-radius: 4px; }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #ef4444; }
-  </style>
-</head>
-<body class="bg-gray-100">
-  <div id="root"></div>
-
-  <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
-
-    // =========================================================================
-    // ⚠️ PENTING: GANTI KONFIGURASI INI DENGAN FIREBASE PROJECT ANDA SENDIRI!
-    // =========================================================================
-    // Deteksi otomatis jika berjalan di Canvas/Preview, maka gunakan config bawaan.
-    // Jika tidak, gunakan konfigurasi placeholder ini yang harus Anda isi jika di-hosting di luar.
-    const firebaseConfig = typeof __firebase_config !== 'undefined' 
-      ? JSON.parse(__firebase_config) 
-      : {
-          apiKey: "KODE_API_KEY_ANDA_DISINI",
-          authDomain: "NAMA_PROJECT_ANDA.firebaseapp.com",
-          projectId: "NAMA_PROJECT_ANDA",
-          storageBucket: "NAMA_PROJECT_ANDA.appspot.com",
-          messagingSenderId: "SENDER_ID_ANDA",
-          appId: "APP_ID_ANDA"
-        };
-
-    const appIdStr = typeof __app_id !== 'undefined' ? __app_id : "mental-ideologi-app";
-
-    // Inisialisasi Firebase
-    if (!firebase.apps.length) {
-      // Cegah inisialisasi jika API key masih placeholder
-      if(firebaseConfig.apiKey !== "KODE_API_KEY_ANDA_DISINI") {
-        firebase.initializeApp(firebaseConfig);
-      }
-    }
-    
-    // Fallback object jika Firebase gagal diinisialisasi karena API key kosong
-    const auth = firebase.apps.length ? firebase.auth() : null;
-    const db = firebase.apps.length ? firebase.firestore() : null;
-
-    // Path Database (Otomatis menyesuaikan dengan Canvas rules)
-    const USERS_PATH = `artifacts/${appIdStr}/public/data/users`;
-    const RESULTS_PATH = `artifacts/${appIdStr}/public/data/results`;
-
-    // --- Constants ---
-    const QUESTIONS = [
-      "Bagaimana pendapatmu tentang amandemen pasal UUD 1945?",
-      "Bagaimana pendapatmu jika memilih pemimpin tidak harus beragama Islam?",
-      "Bagaimana pendapatmu tentang toleransi di Indonesia?",
-      "Bagaimana pendapatmu tentang RUU tentang kebebasan memiliki kepercayaan dan kaitannya dengan paham PKI?",
-      "Bagaimana pendapatmu tentang aliran garis keras keagamaan di Indonesia?",
-      "Bagaimana pendapatmu jika ada seseorang yang kakeknya dulu adalah anggota PKI kemudian dia mendaftar TNI, apakah boleh dan jelaskan alasannya?",
-      "Bagaimana cara mengatasi narkotika?",
-      "Bagaimana pendapatmu tentang pernikahan siri?",
-      "Bagaimana pendapatmu tentang pembangunan infrastruktur di Indonesia yang kurang merata?",
-      "Momen paling menyenangkan dan menyedihkanmu apa?",
-      "Apakah kamu pernah berhubungan dengan Hukum?",
-      "Bagaimana cara kamu refreshing ketika sendiri dan bersama teman, jelaskan masing-masing!",
-      "Bagaimana pendapatmu tentang aksi demo tentang kenaikan harga BBM?",
-      "Bagaimana pendapatmu ketika Indonesia berhubungan dengan Negara yang berpaham komunis seperti China?",
-      "Bagaimana pendapatmu tentang TAP MPR tentang PKI yang akan dicabut?",
-      "Bagaimana pendapatmu tentang kebijakan lockdown saat COVID 19 setiap daerah yang berbeda beda?",
-      "Bagaimana langkah konkret sebagai umat beragama yang baik sebagai wujud sikap toleransi?"
-    ];
-
-    // --- Components ---
-    const Button3D = ({ children, onClick, className = "", disabled = false, variant = "primary" }) => {
-      const baseStyle = "font-bold py-3 px-6 rounded-xl transition-all duration-150 relative top-0 flex items-center justify-center gap-2";
-      const variants = {
-        primary: "bg-red-600 text-white shadow-[0_5px_0_#991b1b] active:shadow-[0_0px_0_#991b1b] active:top-[5px]",
-        secondary: "bg-white text-red-600 border-2 border-red-200 shadow-[0_5px_0_#fca5a5] active:shadow-[0_0px_0_#fca5a5] active:top-[5px]",
-        disabled: "bg-gray-400 text-gray-200 shadow-[0_5px_0_#4b5563] cursor-not-allowed"
-      };
-      return (
-        <button onClick={disabled ? undefined : onClick} className={`${baseStyle} ${disabled ? variants.disabled : variants[variant]} ${className}`} disabled={disabled}>
-          {children}
-        </button>
-      );
-    };
-
-    const Card = ({ children, className = "" }) => (
-      <div className={`bg-white rounded-2xl shadow-2xl border-t-4 border-red-500 p-6 md:p-8 ${className}`}>
-        {children}
-      </div>
-    );
-
-    // --- Main App ---
-    function App() {
-      const [firebaseUser, setFirebaseUser] = useState(null);
-      const [currentUser, setCurrentUser] = useState(null); 
-      const [view, setView] = useState('login'); 
-      const [isLoading, setIsLoading] = useState(true);
-      const [allUsers, setAllUsers] = useState([]);
-      const [allResults, setAllResults] = useState([]);
-      const [hasConfigError, setHasConfigError] = useState(false);
-
-      useEffect(() => {
-        if (!auth) {
-          setHasConfigError(true);
-          setIsLoading(false);
-          return;
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Try Out Mental Ideologi & Wawancara</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Desain Latar Belakang Gradasi Putih ke Merah */
+        body {
+            background: linear-gradient(135deg, #ffffff 0%, #fff0f0 40%, #ffcccc 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
         }
 
-        const initAuth = async () => {
-          try {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-              await auth.signInWithCustomToken(__initial_auth_token);
-            } else {
-              await auth.signInAnonymously();
-            }
-          } catch (err) {
-            console.error("Auth error:", err);
-            setIsLoading(false);
-          }
-        };
+        /* Navigasi Merah 3D */
+        .nav-3d {
+            background: linear-gradient(to bottom, #ef4444, #dc2626);
+            border-bottom: 4px solid #991b1b;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
 
-        initAuth();
+        /* Tombol Merah 3D */
+        .btn-red-3d {
+            background: linear-gradient(to bottom, #ef4444, #dc2626);
+            color: white;
+            font-weight: bold;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            border: none;
+            box-shadow: 0 5px 0 #991b1b, 0 6px 6px rgba(0,0,0,0.2);
+            transition: all 0.1s ease;
+            cursor: pointer;
+            text-align: center;
+            display: inline-block;
+        }
 
-        const unsubscribe = auth.onAuthStateChanged((user) => {
-          setFirebaseUser(user);
-          setIsLoading(false);
-        });
-        return () => unsubscribe();
-      }, []);
+        .btn-red-3d:active {
+            transform: translateY(5px);
+            box-shadow: 0 0 0 #991b1b, 0 1px 2px rgba(0,0,0,0.2);
+        }
 
-      useEffect(() => {
-        if (!firebaseUser || !db) return;
+        .btn-red-3d:disabled {
+            background: #d1d5db;
+            box-shadow: 0 5px 0 #9ca3af;
+            cursor: not-allowed;
+            color: #6b7280;
+        }
+
+        /* Kartu Konten */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px rgba(220, 38, 38, 0.15);
+            border: 1px solid #fee2e2;
+        }
+
+        /* Video Container */
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            border-radius: 1rem;
+            overflow: hidden;
+            border: 4px solid #ef4444;
+            background-color: #000;
+        }
+        video {
+            width: 100%;
+            height: auto;
+            display: block;
+            transform: scaleX(-1); /* Mirror effect */
+        }
         
-        // Cek jika API Key Firebase masih bawaan saat di-hosting mandiri
-        if(firebaseConfig.apiKey === "KODE_API_KEY_ANDA_DISINI") {
-            alert("PERHATIAN: Anda belum memasukkan Konfigurasi Firebase Anda di dalam file index.html! Database tidak akan berfungsi.");
+        .recording-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(239, 68, 68, 0.9);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            animation: blink 1s infinite;
+            display: none;
         }
 
-        const unsubUsers = db.collection(USERS_PATH).onSnapshot((snap) => {
-          const users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-          setAllUsers(users);
-          
-          setCurrentUser(prevUser => {
-            if (prevUser && prevUser.role !== 'admin') {
-              const updatedMe = users.find(u => u.username === prevUser.username);
-              if (updatedMe) {
-                if (updatedMe.status === 'approved' && view === 'pending') setView('instructions');
-                return updatedMe;
-              }
-            }
-            return prevUser;
-          });
-        }, err => console.error(err));
-
-        const unsubResults = db.collection(RESULTS_PATH).onSnapshot((snap) => {
-          setAllResults(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        }, err => console.error(err));
-
-        return () => { unsubUsers(); unsubResults(); };
-      }, [firebaseUser, view]);
-
-      const handleLogin = async (username, password) => {
-        setIsLoading(true);
-        if (username === 'admin123' && password === '123') {
-          setCurrentUser({ username: 'admin', role: 'admin', status: 'approved' });
-          setView('admin');
-          setIsLoading(false);
-          return;
+        @keyframes blink {
+            50% { opacity: 0; }
         }
 
-        let userDoc = allUsers.find(u => u.username === username);
-        if (userDoc) {
-          if (userDoc.password === password) {
-            setCurrentUser(userDoc);
-            setView(userDoc.status === 'approved' ? 'instructions' : 'pending');
-          } else {
-            alert("Password salah!");
-          }
-        } else {
-          const id = crypto.randomUUID();
-          const newUser = { id, username, password, role: 'user', status: 'pending', createdAt: new Date().toISOString() };
-          try {
-            await db.collection(USERS_PATH).doc(id).set(newUser);
-            setCurrentUser(newUser);
-            setView('pending');
-          } catch(e) {
-            console.error(e);
-            alert("Gagal register. Pastikan rules Firestore sudah diatur.");
-          }
-        }
-        setIsLoading(false);
-      };
+        /* Hilangkan elemen yang disembunyikan */
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
 
-      const handleLogout = () => { setCurrentUser(null); setView('login'); };
-
-      if (hasConfigError) {
-        return (
-          <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-            <Card className="text-center max-w-lg">
-              <i className="fas fa-exclamation-triangle text-red-500 text-5xl mb-4"></i>
-              <h1 className="text-2xl font-bold text-gray-800 mb-2">Konfigurasi Firebase Hilang</h1>
-              <p className="text-gray-600">Anda harus mengubah `firebaseConfig` dengan API Key dari project Anda di file `index.html` ini sebelum meng-hostingnya.</p>
-            </Card>
-          </div>
-        );
-      }
-
-      return (
-        <div className="min-h-screen bg-gradient-to-b from-white to-red-200 text-slate-800 font-sans selection:bg-red-300">
-          <header className="bg-red-700 shadow-md border-b-4 border-red-800 sticky top-0 z-50">
-            <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="bg-white p-2 rounded-lg shadow-inner">
-                  <i className="fas fa-chart-line text-red-600 text-xl"></i>
-                </div>
-                <h1 className="text-white font-bold text-lg md:text-xl tracking-wide text-shadow-sm">
-                  Try Out Mental Ideologi
-                </h1>
-              </div>
-              {currentUser && (
-                <div className="flex items-center gap-4">
-                  <span className="text-red-100 hidden md:inline-block font-medium">Halo, {currentUser.username}</span>
-                  <button onClick={handleLogout} className="bg-red-800 hover:bg-red-900 text-white py-2 px-3 rounded-lg transition-colors" title="Keluar">
-                    <i className="fas fa-sign-out-alt"></i>
-                  </button>
-                </div>
-              )}
-            </div>
-          </header>
-
-          <main className="max-w-6xl mx-auto p-4 py-8 relative">
-            {isLoading && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/50 backdrop-blur-sm rounded-xl">
-                 <div className="bg-white p-4 rounded-xl shadow-xl flex items-center gap-3">
-                    <i className="fas fa-spinner fa-spin text-red-600 text-xl"></i>
-                    <span className="font-bold text-gray-700">Memproses sistem...</span>
-                 </div>
-              </div>
-            )}
-
-            {!isLoading && view === 'login' && <LoginView onLogin={handleLogin} />}
-            {!isLoading && view === 'admin' && <AdminDashboard users={allUsers} results={allResults} />}
-            {!isLoading && view === 'pending' && <PendingView />}
-            {!isLoading && view === 'instructions' && <InstructionsView onStart={() => setView('device')} />}
-            {!isLoading && view === 'device' && <DeviceCheckView onReady={() => setView('interview')} />}
-            {!isLoading && view === 'interview' && <InterviewSession currentUser={currentUser} onFinish={() => setView('finished')} />}
-            {!isLoading && view === 'finished' && <FinishedView />}
-          </main>
+    <!-- Navigasi Utama -->
+    <nav class="nav-3d text-white p-4 flex justify-between items-center sticky top-0 z-50">
+        <div class="text-xl font-black tracking-wider flex items-center gap-2">
+            <i class="fa-solid fa-shield-halved"></i> MENTAL IDEOLOGI PRO
         </div>
-      );
-    }
+        <div id="nav-user-info" class="font-semibold hidden flex items-center gap-4">
+            <span id="nav-username"></span>
+            <button onclick="app.logout()" class="bg-white text-red-600 px-3 py-1 rounded shadow text-sm hover:bg-gray-100 font-bold">Logout</button>
+        </div>
+    </nav>
 
-    // --- Views ---
-    function LoginView({ onLogin }) {
-      const [username, setUsername] = useState('');
-      const [password, setPassword] = useState('');
-      const submit = (e) => { e.preventDefault(); if(username && password) onLogin(username, password); };
-      return (
-        <div className="max-w-md mx-auto mt-10">
-          <Card className="text-center">
-            <div className="bg-red-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-              <i className="fas fa-user-check text-4xl text-red-600"></i>
+    <!-- Container Utama -->
+    <main class="flex-grow flex items-center justify-center p-4">
+
+        <!-- ================= VIEW: LOGIN & REGISTRASI ================= -->
+        <div id="view-login" class="glass-card p-8 w-full max-w-md transition-all">
+            <div class="text-center mb-6">
+                <i class="fa-solid fa-user-lock text-5xl text-red-600 mb-4"></i>
+                <h2 class="text-2xl font-bold text-gray-800">Portal Akses</h2>
+                <p class="text-gray-500 text-sm">Silakan login atau daftar</p>
             </div>
-            <h2 className="text-2xl font-bold mb-2">Selamat Datang</h2>
-            <p className="text-gray-500 mb-8">Silakan masuk atau daftar otomatis jika akun baru.</p>
-            <form onSubmit={submit} className="space-y-4">
-              <div className="text-left">
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Username</label>
-                <input type="text" value={username} onChange={e => setUsername(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-red-500 outline-none" placeholder="Masukkan username" />
-              </div>
-              <div className="text-left mb-6">
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Password</label>
-                <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-red-500 outline-none" placeholder="Masukkan password" />
-              </div>
-              <Button3D className="w-full" onClick={submit}>Masuk / Daftar <i className="fas fa-chevron-right ml-1"></i></Button3D>
+
+            <!-- Tab Switcher -->
+            <div class="flex mb-6 bg-red-100 rounded-lg p-1">
+                <button onclick="ui.switchLoginTab('login')" id="tab-login" class="flex-1 py-2 rounded-md font-bold text-red-700 bg-white shadow">Login</button>
+                <button onclick="ui.switchLoginTab('register')" id="tab-register" class="flex-1 py-2 rounded-md font-bold text-gray-500 hover:text-red-700">Daftar</button>
+            </div>
+
+            <!-- Form Login -->
+            <form id="form-login" onsubmit="app.handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">Username</label>
+                    <input type="text" id="login-user" required class="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">Password</label>
+                    <input type="password" id="login-pass" required class="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500">
+                </div>
+                <div id="login-error" class="text-red-600 text-sm font-semibold hidden text-center"></div>
+                <button type="submit" class="btn-red-3d w-full mt-4">MASUK <i class="fa-solid fa-arrow-right ml-2"></i></button>
             </form>
-          </Card>
-        </div>
-      );
-    }
 
-    function AdminDashboard({ users, results }) {
-      const [tab, setTab] = useState('persetujuan');
-      const pendingUsers = users.filter(u => u.role === 'user' && u.status === 'pending');
-      const approvedUsers = users.filter(u => u.role === 'user' && u.status === 'approved');
-
-      const handleApprove = async (userId) => {
-        try { await db.collection(USERS_PATH).doc(userId).set({ status: 'approved' }, { merge: true }); }
-        catch (e) { alert("Gagal menyetujui user"); }
-      };
-
-      return (
-        <div className="space-y-6">
-          <div className="flex gap-4 border-b-2 border-red-200 pb-2">
-            <button onClick={() => setTab('persetujuan')} className={`px-4 py-2 font-bold rounded-t-lg ${tab === 'persetujuan' ? 'bg-red-600 text-white' : 'text-red-700 hover:bg-red-100'}`}>Persetujuan User</button>
-            <button onClick={() => setTab('hasil')} className={`px-4 py-2 font-bold rounded-t-lg ${tab === 'hasil' ? 'bg-red-600 text-white' : 'text-red-700 hover:bg-red-100'}`}>Hasil Wawancara</button>
-          </div>
-          {tab === 'persetujuan' && (
-            <Card>
-              <h2 className="text-xl font-bold mb-4"><i className="fas fa-user-check text-red-600 mr-2"></i> Daftar Tunggu Persetujuan</h2>
-              {pendingUsers.length === 0 ? <p className="text-gray-500 bg-gray-50 p-4 rounded">Kosong.</p> : (
-                <table className="w-full text-left border-collapse">
-                  <thead><tr className="bg-red-50 text-red-800"><th className="p-3">Username</th><th className="p-3">Aksi</th></tr></thead>
-                  <tbody>
-                    {pendingUsers.map(u => (
-                      <tr key={u.id} className="border-b"><td className="p-3 font-medium">{u.username}</td><td className="p-3"><Button3D onClick={() => handleApprove(u.id)} className="py-1 px-4 text-sm">Setujui</Button3D></td></tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-              <h2 className="text-xl font-bold mt-10 mb-4 text-gray-700">User Disetujui</h2>
-              <div className="flex flex-wrap gap-2">
-                {approvedUsers.map(u => <span key={u.id} className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">{u.username}</span>)}
-              </div>
-            </Card>
-          )}
-          {tab === 'hasil' && (
-            <Card>
-              <h2 className="text-xl font-bold mb-4"><i className="fas fa-file-alt text-red-600 mr-2"></i> Hasil Wawancara</h2>
-              {results.length === 0 ? <p className="text-gray-500 bg-gray-50 p-4 rounded">Belum ada hasil.</p> : (
-                <div className="space-y-6">
-                  {results.map((res, idx) => (
-                    <div key={idx} className="border-2 border-gray-200 rounded-xl p-4 bg-gray-50">
-                      <div className="flex justify-between items-center mb-4 border-b pb-2">
-                        <h3 className="font-bold text-lg text-red-700">User: {res.username}</h3>
-                        <span className="text-sm text-gray-500">{new Date(res.timestamp).toLocaleString('id-ID')}</span>
-                      </div>
-                      <div className="space-y-4 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
-                        {res.answers.map((ans, i) => (
-                          <div key={i} className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                            <p className="font-bold text-gray-800 text-sm mb-2">Q{ans.questionId + 1}: {QUESTIONS[ans.questionId]}</p>
-                            <div className="bg-blue-50 p-3 rounded text-sm text-blue-900 italic mb-2">"{ans.transcript || '(Tidak ada suara)'}"</div>
-                            <div className="flex justify-between text-xs font-semibold">
-                              <span className="text-gray-500">Durasi: {ans.duration} detik</span><span className="text-green-600">Skor: {ans.mockScore}/100</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+            <!-- Form Register -->
+            <form id="form-register" onsubmit="app.handleRegister(event)" class="space-y-4 hidden">
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">Pilih Username</label>
+                    <input type="text" id="reg-user" required class="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:border-red-500">
                 </div>
-              )}
-            </Card>
-          )}
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">Pilih Password</label>
+                    <input type="password" id="reg-pass" required class="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:border-red-500">
+                </div>
+                <div id="reg-msg" class="text-green-600 text-sm font-semibold hidden text-center"></div>
+                <button type="submit" class="btn-red-3d w-full mt-4">DAFTAR & MINTA PERSETUJUAN</button>
+            </form>
         </div>
-      );
-    }
 
-    function PendingView() {
-      return (
-        <Card className="max-w-lg mx-auto text-center mt-20">
-          <div className="bg-yellow-100 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
-            <i className="fas fa-exclamation-circle text-4xl text-yellow-600"></i>
-          </div>
-          <h2 className="text-2xl font-bold mb-4">Menunggu Persetujuan</h2>
-          <p className="text-gray-600 mb-8">Akun Anda sedang menunggu persetujuan dari Administrator. Halaman ini akan otomatis berganti jika telah disetujui.</p>
-          <i className="fas fa-spinner fa-spin text-red-400 text-3xl"></i>
-        </Card>
-      );
-    }
+        <!-- ================= VIEW: ADMIN DASHBOARD ================= -->
+        <div id="view-admin" class="w-full max-w-6xl hidden space-y-6">
+            <h1 class="text-3xl font-black text-red-700 border-b-4 border-red-500 pb-2 inline-block">Dashboard Admin</h1>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Panel Persetujuan User -->
+                <div class="glass-card p-6">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center"><i class="fa-solid fa-user-clock text-red-500 mr-2"></i> Persetujuan User</h2>
+                    <div id="admin-pending-list" class="space-y-3 max-h-96 overflow-y-auto pr-2">
+                        <!-- List pending users goes here -->
+                    </div>
+                </div>
 
-    function InstructionsView({ onStart }) {
-      return (
-        <Card className="max-w-2xl mx-auto">
-          <h2 className="text-2xl font-bold mb-6 text-red-700 border-b-2 border-red-100 pb-4">Petunjuk Try Out</h2>
-          <ul className="space-y-4 mb-8 text-gray-700">
-            <li className="flex gap-3"><i className="fas fa-check-circle text-red-500 mt-1"></i> Wawancara dilaksanakan secara online.</li>
-            <li className="flex gap-3"><i className="fas fa-check-circle text-red-500 mt-1"></i> Waktu rekam maksimal 3 menit per pertanyaan.</li>
-            <li className="flex gap-3"><i className="fas fa-check-circle text-red-500 mt-1"></i> Suara akan ditranskrip secara real-time.</li>
-            <li className="flex gap-3"><i className="fas fa-check-circle text-red-500 mt-1"></i> Pastikan kamera & mikrofon siap digunakan.</li>
-          </ul>
-          <div className="flex justify-end"><Button3D onClick={onStart}>Cek Perangkat <i className="fas fa-chevron-right ml-1"></i></Button3D></div>
-        </Card>
-      );
-    }
-
-    function DeviceCheckView({ onReady }) {
-      const [cam, setCam] = useState('pending'), [mic, setMic] = useState('pending'), [err, setErr] = useState('');
-      const videoRef = useRef(null);
-      const check = async () => {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-          if(videoRef.current) videoRef.current.srcObject = stream;
-          setCam('ok'); setMic('ok'); setErr('');
-        } catch(e) { setCam('err'); setMic('err'); setErr('Akses ditolak atau perangkat tidak ditemukan.'); }
-      };
-      useEffect(() => { check(); return () => { if(videoRef.current?.srcObject) videoRef.current.srcObject.getTracks().forEach(t=>t.stop()); } }, []);
-      
-      return (
-        <Card className="max-w-2xl mx-auto">
-          <h2 className="text-2xl font-bold mb-6 text-center">Cek Perangkat Keras</h2>
-          <div className="flex flex-col md:flex-row gap-6 mb-8">
-            <div className="flex-1 bg-black rounded-xl aspect-video relative flex items-center justify-center">
-              <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover transform scale-x-[-1]" />
-              {cam !== 'ok' && <div className="absolute text-white text-center"><i className="fas fa-video-slash text-4xl text-red-500 mb-2"></i><br/>Off</div>}
+                <!-- Panel Hasil Wawancara -->
+                <div class="glass-card p-6">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center"><i class="fa-solid fa-clipboard-list text-red-500 mr-2"></i> Hasil Wawancara & Analisis</h2>
+                    <div id="admin-results-list" class="space-y-3 max-h-96 overflow-y-auto pr-2">
+                        <!-- List results goes here -->
+                    </div>
+                </div>
             </div>
-            <div className="flex-1 flex flex-col justify-center space-y-4">
-              <div className={`p-4 rounded border-2 ${cam==='ok'?'bg-green-50 border-green-200':'bg-red-50 border-red-200'}`}>Kamera: {cam==='ok'?'Siap':'Gagal'}</div>
-              <div className={`p-4 rounded border-2 ${mic==='ok'?'bg-green-50 border-green-200':'bg-red-50 border-red-200'}`}>Mikrofon: {mic==='ok'?'Siap':'Gagal'}</div>
-            </div>
-          </div>
-          {err && <div className="bg-red-100 text-red-800 p-3 rounded mb-6">{err}</div>}
-          <div className="flex justify-between">
-            <button onClick={check} className="text-red-600 font-bold"><i className="fas fa-sync-alt mr-1"></i> Cek Ulang</button>
-            <Button3D onClick={() => { if(videoRef.current?.srcObject) videoRef.current.srcObject.getTracks().forEach(t=>t.stop()); onReady(); }} disabled={cam!=='ok'}>Mulai Wawancara <i className="fas fa-play ml-1"></i></Button3D>
-          </div>
-        </Card>
-      );
-    }
-
-    function InterviewSession({ currentUser, onFinish }) {
-      const [q, setQ] = useState(0), [time, setTime] = useState(180), [rec, setRec] = useState(false);
-      const [txt, setTxt] = useState(''), [ans, setAns] = useState([]), [sub, setSub] = useState(false);
-      const videoRef = useRef(null), streamRef = useRef(null), recogRef = useRef(null), timerRef = useRef(null);
-
-      useEffect(() => {
-        navigator.mediaDevices.getUserMedia({video:true, audio:true}).then(s => {
-          streamRef.current = s; if(videoRef.current) videoRef.current.srcObject = s;
-        });
-        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if(SR) {
-          recogRef.current = new SR(); recogRef.current.continuous = true; recogRef.current.interimResults = true; recogRef.current.lang = 'id-ID';
-          recogRef.current.onresult = (e) => {
-            let final = ''; for(let i=e.resultIndex; i<e.results.length; ++i) if(e.results[i].isFinal) final += e.results[i][0].transcript + ' ';
-            if(final) setTxt(p => p + final);
-          };
-        }
-        return () => stopMedia();
-      }, []);
-
-      const stopMedia = () => { streamRef.current?.getTracks().forEach(t=>t.stop()); try{recogRef.current?.stop()}catch(e){} clearInterval(timerRef.current); };
-      
-      const startRec = () => {
-        setTxt(''); setTime(180); setRec(true);
-        try{recogRef.current?.start()}catch(e){}
-        timerRef.current = setInterval(() => { setTime(p => { if(p<=1) { nextQ(); return 0; } return p-1; }) }, 1000);
-      };
-
-      const nextQ = async () => {
-        clearInterval(timerRef.current); try{recogRef.current?.stop()}catch(e){} setRec(false);
-        const newAns = [...ans, { questionId: q, transcript: txt.trim()||"(Kosong)", duration: 180-time, mockScore: Math.floor(Math.random()*35)+60 }];
-        setAns(newAns);
-        if(q < QUESTIONS.length - 1) { setQ(p=>p+1); setTxt(''); setTime(180); }
-        else {
-          setSub(true); stopMedia();
-          await db.collection(RESULTS_PATH).doc(currentUser.id + '_' + Date.now()).set({ userId: currentUser.id, username: currentUser.username, answers: newAns, timestamp: new Date().toISOString() });
-          onFinish();
-        }
-      };
-
-      return (
-        <div className="max-w-4xl mx-auto relative">
-          {sub && <div className="absolute inset-0 z-20 flex justify-center items-center bg-white/80"><i className="fas fa-spinner fa-spin text-red-600 text-4xl"></i></div>}
-          <div className="bg-red-100 h-3 rounded-full mb-2"><div className="bg-red-600 h-full" style={{width:`${((q+1)/QUESTIONS.length)*100}%`}}></div></div>
-          <div className="text-right text-sm font-bold text-red-800 mb-6">Pertanyaan {q+1} / {QUESTIONS.length}</div>
-          <div className="flex flex-col md:flex-row gap-6">
-            <div className="md:w-1/3 bg-black rounded-xl aspect-[3/4] relative overflow-hidden">
-              <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover transform scale-x-[-1]" />
-              {rec && <div className="absolute top-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm font-bold"><span className="text-red-500 mr-1">●</span> REC</div>}
-              <div className="absolute bottom-4 w-full text-center"><span className="bg-black/70 text-white px-4 py-2 rounded-full font-mono text-xl">{Math.floor(time/60)}:{(time%60).toString().padStart(2,'0')}</span></div>
-            </div>
-            <Card className="md:w-2/3 flex flex-col">
-              <h3 className="text-xl font-bold mb-4 border-b pb-4">"{QUESTIONS[q]}"</h3>
-              <div className="flex-1 bg-red-50 p-4 rounded-xl min-h-[150px]"><p className="italic text-gray-700">{txt || (rec?"Mendengarkan...":"Klik Mulai Menjawab")}</p></div>
-              <div className="mt-6 flex justify-end">
-                {!rec ? <Button3D onClick={startRec}><i className="fas fa-microphone mr-2"></i> Mulai Menjawab</Button3D> : <Button3D variant="secondary" onClick={nextQ}>Selesai & Lanjut <i className="fas fa-chevron-right ml-2"></i></Button3D>}
-              </div>
-            </Card>
-          </div>
         </div>
-      );
-    }
 
-    function FinishedView() {
-      return (
-        <Card className="max-w-lg mx-auto text-center mt-20">
-          <div className="bg-green-100 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6"><i className="fas fa-check-circle text-4xl text-green-600"></i></div>
-          <h2 className="text-2xl font-bold mb-4">Wawancara Selesai!</h2>
-          <p className="text-gray-600 mb-8">Data telah disimpan dan dikirim ke Admin.</p>
-          <Button3D onClick={() => window.location.reload()} className="mx-auto">Kembali ke Beranda</Button3D>
-        </Card>
-      );
-    }
+        <!-- Modal Detail Hasil Admin -->
+        <div id="modal-result" class="fixed inset-0 bg-black bg-opacity-60 z-50 hidden flex items-center justify-center p-4">
+            <div class="glass-card w-full max-w-4xl p-6 max-h-[90vh] overflow-y-auto relative">
+                <button onclick="ui.closeResultModal()" class="absolute top-4 right-4 text-gray-500 hover:text-red-600 text-2xl"><i class="fa-solid fa-times"></i></button>
+                <h2 class="text-2xl font-bold text-red-700 mb-2">Detail Hasil Try Out</h2>
+                <p id="modal-user-name" class="font-semibold text-gray-600 mb-4"></p>
+                
+                <div class="bg-red-50 p-4 rounded-lg border border-red-200 mb-6">
+                    <h3 class="font-bold text-red-800"><i class="fa-solid fa-brain mr-2"></i> Hasil Analisis Psikologis (Sistem AI)</h3>
+                    <p id="modal-analysis" class="text-gray-700 mt-2 italic"></p>
+                </div>
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-  </script>
+                <div id="modal-answers-list" class="space-y-6">
+                    <!-- Jawaban detail masuk sini -->
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= VIEW: USER DASHBOARD (INTRO) ================= -->
+        <div id="view-user-dashboard" class="glass-card p-8 w-full max-w-4xl hidden">
+            <h1 class="text-3xl font-black text-red-700 mb-6 text-center">Persiapan Ujian Mental Ideologi</h1>
+            
+            <div class="bg-red-50 border-l-4 border-red-500 p-6 rounded-r-lg mb-8">
+                <h3 class="text-xl font-bold text-red-800 mb-3"><i class="fa-solid fa-circle-info mr-2"></i> Petunjuk Pelaksanaan:</h3>
+                <ul class="space-y-3 text-gray-700 list-disc list-inside">
+                    <li>Wawancara akan dilaksanakan secara <strong>online</strong>.</li>
+                    <li>Pertanyaan akan diajukan dalam bentuk tulisan. Anda dapat langsung menjawab melalui <strong>rekaman wajah dan suara</strong> dengan batas waktu maksimal <strong>3 menit per pertanyaan</strong>.</li>
+                    <li>Sistem akan <strong>menganalisis jawaban dan ekspresi wajah</strong> Anda secara psikologis.</li>
+                    <li>Saat Anda menjawab, suara akan otomatis <strong>ditranskrip secara real-time</strong> dalam bentuk tulisan untuk analisis.</li>
+                </ul>
+            </div>
+
+            <!-- Hardware Check Section -->
+            <div class="border-2 border-gray-200 rounded-lg p-6 text-center mb-8 bg-white">
+                <h3 class="font-bold text-lg mb-4 text-gray-800">Pengecekan Perangkat</h3>
+                
+                <div id="hw-status" class="mb-4">
+                    <div class="inline-flex items-center justify-center p-3 rounded-full bg-gray-100 text-gray-500 mb-2">
+                        <i class="fa-solid fa-video text-2xl mx-3"></i>
+                        <i class="fa-solid fa-microphone text-2xl mx-3"></i>
+                    </div>
+                    <p class="font-semibold text-gray-600">Status: Belum Diperiksa</p>
+                </div>
+
+                <div id="hw-solution" class="hidden bg-yellow-50 border border-yellow-300 text-yellow-800 p-3 rounded text-sm text-left mb-4">
+                    <strong><i class="fa-solid fa-triangle-exclamation"></i> Kamera atau Mikrofon Belum Terkoneksi/Ditolak.</strong><br>
+                    Solusi: 
+                    1. Pastikan perangkat Anda memiliki webcam dan mikrofon.<br>
+                    2. Cek apakah ada aplikasi lain (seperti Zoom/Meet) yang sedang menggunakan kamera.<br>
+                    3. Klik ikon gembok di sebelah URL browser Anda, pastikan akses Kamera dan Mikrofon diset ke "Allow/Izinkan", lalu muat ulang (refresh) halaman.
+                </div>
+
+                <button id="btn-check-hw" onclick="interview.checkHardware()" class="bg-gray-800 text-white font-bold py-2 px-6 rounded hover:bg-gray-700 transition">
+                    <i class="fa-solid fa-rotate mr-2"></i> Periksa Kamera & Mikrofon
+                </button>
+            </div>
+
+            <div class="text-center">
+                <button id="btn-start-interview" onclick="interview.start()" class="btn-red-3d text-lg px-10 py-4 w-full md:w-auto" disabled>
+                    <i class="fa-solid fa-play mr-2"></i> MULAI WAWANCARA SEKARANG
+                </button>
+            </div>
+        </div>
+
+        <!-- ================= VIEW: INTERVIEW ROOM ================= -->
+        <div id="view-interview" class="w-full max-w-5xl hidden flex flex-col md:flex-row gap-6">
+            
+            <!-- Area Kiri: Video & Kontrol -->
+            <div class="flex-1 flex flex-col space-y-4">
+                <div class="glass-card p-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-bold text-gray-600" id="q-counter">Pertanyaan 1 dari 17</span>
+                        <span class="font-black text-red-600 text-xl" id="timer">03:00</span>
+                    </div>
+                    
+                    <div class="video-container shadow-inner">
+                        <div class="recording-indicator" id="rec-indicator"><i class="fa-solid fa-circle text-xs mr-1"></i> REC</div>
+                        <video id="user-video" autoplay muted playsinline></video>
+                    </div>
+
+                    <div class="mt-4 flex justify-center gap-4">
+                        <button id="btn-record" onclick="interview.toggleRecording()" class="btn-red-3d w-full">
+                            <i class="fa-solid fa-microphone mr-2"></i> Mulai Menjawab
+                        </button>
+                        <button id="btn-next-q" onclick="interview.nextQuestion()" class="btn-red-3d w-full hidden bg-gray-800">
+                            Lanjut <i class="fa-solid fa-forward ml-2"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Area Kanan: Pertanyaan & Transkrip -->
+            <div class="flex-1 flex flex-col space-y-4">
+                <div class="glass-card p-6 border-l-4 border-red-500 h-1/3 overflow-y-auto">
+                    <h3 class="text-sm font-bold text-red-400 uppercase tracking-widest mb-2">Pertanyaan:</h3>
+                    <p id="question-text" class="text-xl font-bold text-gray-800 leading-relaxed"></p>
+                </div>
+
+                <div class="glass-card p-6 flex-1 flex flex-col">
+                    <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-2 flex justify-between items-center">
+                        Transkrip Real-Time 
+                        <i class="fa-solid fa-wave-square text-red-500" id="voice-wave" style="display:none;"></i>
+                    </h3>
+                    <div class="bg-gray-50 border border-gray-200 rounded p-4 flex-1 overflow-y-auto text-gray-700">
+                        <p id="transcript-text" class="italic text-gray-400">Suara akan muncul di sini saat Anda mulai berbicara...</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ================= VIEW: SELESAI ================= -->
+        <div id="view-finish" class="glass-card p-10 w-full max-w-2xl hidden text-center">
+            <i class="fa-regular fa-circle-check text-6xl text-green-500 mb-6"></i>
+            <h1 class="text-3xl font-black text-gray-800 mb-4">Wawancara Selesai!</h1>
+            <p class="text-gray-600 mb-8">Terima kasih. Jawaban, transkrip suara, dan data analisis ekspresi wajah Anda telah dikirim ke server pusat untuk ditinjau oleh tim penilai (Admin).</p>
+            <button onclick="app.logout()" class="btn-red-3d"><i class="fa-solid fa-house mr-2"></i> Kembali ke Beranda</button>
+        </div>
+
+    </main>
+
+    <script>
+        // --- 1. MOCK DATABASE (In-Memory State) ---
+        // Karena ini Canvas tanpa backend/firebase, data disimpan di memori selama halaman tidak direfresh.
+        const db = {
+            admins: [{ user: 'admin123', pass: '123' }],
+            pendingUsers: [], // Array of objects { username, password }
+            users: [],        // Array of approved users
+            results: []       // Array of { username, answers: [{q, transcript}], analysis }
+        };
+
+        let currentUser = null;
+        let userRole = null; // 'admin' or 'user'
+
+        // --- 2. DATA PERTANYAAN ---
+        const questionsList = [
+            "Bagaimana pendapatmu tentang amandemen pasal UUD 1945?",
+            "Bagaimana pendapatmu jika memilih pemimpin tidak harus beragama Islam?",
+            "Bagaimana pendapatmu tentang toleransi di Indonesia?",
+            "Bagaimana pendapatmu tentang RUU tentang kebebasan memiliki kepercayaan dan kaitannya dengan paham PKI?",
+            "Bagaimana pendapatmu tentang aliran garis keras keagamaan di Indonesia?",
+            "Bagaimana pendapatmu jika ada seseorang yang kakeknya dulu adalah anggota PKI kemudian dia mendaftar TNI, apakah boleh dan jelaskan alasannya?",
+            "Bagaimana cara mengatasi narkotika?",
+            "Bagaimana pendapatmu tentang pernikahan siri?",
+            "Bagaimana pendapatmu tentang pembangunan infrastruktur di Indonesia yang kurang merata?",
+            "Momen paling menyenangkan dan menyedihkanmu apa?",
+            "Apakah kamu pernah berhubungan dengan Hukum?",
+            "Bagaimana cara kamu refreshing ketika sendiri dan bersama teman, jelaskan masing-masing!",
+            "Bagaimana pendapatmu tentang aksi demo tentang kenaikan harga BBM?",
+            "Bagaimana pendapatmu ketika Indonesia berhubungan dengan Negara yang berpaham komunis seperti China?",
+            "Bagaimana pendapatmu tentang TAP MPR tentang PKI yang akan dicabut?",
+            "Bagaimana pendapatmu tentang kebijakan lockdown saat COVID 19 setiap daerah yang berbeda beda?",
+            "Bagaimana langkah konkret sebagai umat beragama yang baik sebagai wujud sikap toleransi?"
+        ];
+
+        // --- 3. UI CONTROLLER ---
+        const ui = {
+            views: ['view-login', 'view-admin', 'view-user-dashboard', 'view-interview', 'view-finish'],
+            
+            showView: (viewId) => {
+                ui.views.forEach(v => document.getElementById(v).classList.add('hidden'));
+                document.getElementById(viewId).classList.remove('hidden');
+            },
+            
+            switchLoginTab: (tab) => {
+                const formL = document.getElementById('form-login');
+                const formR = document.getElementById('form-register');
+                const btnL = document.getElementById('tab-login');
+                const btnR = document.getElementById('tab-register');
+
+                if (tab === 'login') {
+                    formL.classList.remove('hidden');
+                    formR.classList.add('hidden');
+                    btnL.className = "flex-1 py-2 rounded-md font-bold text-red-700 bg-white shadow";
+                    btnR.className = "flex-1 py-2 rounded-md font-bold text-gray-500 hover:text-red-700";
+                } else {
+                    formL.classList.add('hidden');
+                    formR.classList.remove('hidden');
+                    btnR.className = "flex-1 py-2 rounded-md font-bold text-red-700 bg-white shadow";
+                    btnL.className = "flex-1 py-2 rounded-md font-bold text-gray-500 hover:text-red-700";
+                }
+            },
+
+            updateNav: () => {
+                const navInfo = document.getElementById('nav-user-info');
+                if (currentUser) {
+                    navInfo.classList.remove('hidden');
+                    document.getElementById('nav-username').innerHTML = `<i class="fa-solid ${userRole === 'admin' ? 'fa-user-shield text-yellow-300' : 'fa-user'} mr-1"></i> ${currentUser}`;
+                } else {
+                    navInfo.classList.add('hidden');
+                }
+            },
+
+            renderAdminDashboard: () => {
+                const pendingList = document.getElementById('admin-pending-list');
+                const resultsList = document.getElementById('admin-results-list');
+                
+                // Render Pending
+                if (db.pendingUsers.length === 0) {
+                    pendingList.innerHTML = '<p class="text-gray-400 italic">Tidak ada user menunggu persetujuan.</p>';
+                } else {
+                    pendingList.innerHTML = db.pendingUsers.map((u, index) => `
+                        <div class="flex justify-between items-center p-3 bg-white border rounded shadow-sm">
+                            <span class="font-bold text-gray-700"><i class="fa-solid fa-user-clock mr-2 text-gray-400"></i>${u.username}</span>
+                            <button onclick="app.approveUser(${index})" class="bg-green-500 text-white px-3 py-1 rounded font-bold text-sm hover:bg-green-600 transition">Setujui</button>
+                        </div>
+                    `).join('');
+                }
+
+                // Render Results
+                if (db.results.length === 0) {
+                    resultsList.innerHTML = '<p class="text-gray-400 italic">Belum ada hasil wawancara.</p>';
+                } else {
+                    resultsList.innerHTML = db.results.map((r, index) => `
+                        <div class="flex justify-between items-center p-3 bg-white border rounded shadow-sm">
+                            <span class="font-bold text-gray-700"><i class="fa-solid fa-check-circle mr-2 text-green-500"></i>${r.username}</span>
+                            <button onclick="ui.showResultModal(${index})" class="bg-blue-500 text-white px-3 py-1 rounded font-bold text-sm hover:bg-blue-600 transition">Lihat Detail</button>
+                        </div>
+                    `).join('');
+                }
+            },
+
+            showResultModal: (index) => {
+                const data = db.results[index];
+                document.getElementById('modal-user-name').innerText = `Peserta: ${data.username}`;
+                document.getElementById('modal-analysis').innerText = data.analysis;
+                
+                const answersHtml = data.answers.map((ans, i) => `
+                    <div class="border-b pb-4">
+                        <p class="font-bold text-gray-800 mb-1">${i+1}. ${ans.q}</p>
+                        <p class="text-gray-600 italic">Transkrip: "${ans.transcript || '(Tidak ada suara terdeteksi)'}"</p>
+                    </div>
+                `).join('');
+                
+                document.getElementById('modal-answers-list').innerHTML = answersHtml;
+                document.getElementById('modal-result').classList.remove('hidden');
+            },
+
+            closeResultModal: () => {
+                document.getElementById('modal-result').classList.add('hidden');
+            }
+        };
+
+        // --- 4. APP LOGIC (Auth & Routing) ---
+        const app = {
+            handleLogin: (e) => {
+                e.preventDefault();
+                const user = document.getElementById('login-user').value;
+                const pass = document.getElementById('login-pass').value;
+                const errBox = document.getElementById('login-error');
+
+                // Check Admin
+                if (user === 'admin123' && pass === '123') {
+                    currentUser = user;
+                    userRole = 'admin';
+                    ui.updateNav();
+                    ui.renderAdminDashboard();
+                    ui.showView('view-admin');
+                    errBox.classList.add('hidden');
+                    return;
+                }
+
+                // Check Approved User
+                const approvedUser = db.users.find(u => u.username === user && u.password === pass);
+                if (approvedUser) {
+                    currentUser = user;
+                    userRole = 'user';
+                    ui.updateNav();
+                    ui.showView('view-user-dashboard');
+                    errBox.classList.add('hidden');
+                    return;
+                }
+
+                // Check Pending User
+                const pendingUser = db.pendingUsers.find(u => u.username === user && u.password === pass);
+                if (pendingUser) {
+                    errBox.innerText = "Akun Anda sedang menunggu persetujuan Admin.";
+                    errBox.classList.remove('hidden');
+                    return;
+                }
+
+                errBox.innerText = "Username/Password salah atau tidak terdaftar.";
+                errBox.classList.remove('hidden');
+            },
+
+            handleRegister: (e) => {
+                e.preventDefault();
+                const user = document.getElementById('reg-user').value;
+                const pass = document.getElementById('reg-pass').value;
+                const msgBox = document.getElementById('reg-msg');
+
+                // Validate exists
+                if (db.users.find(u=>u.username===user) || db.pendingUsers.find(u=>u.username===user) || user==='admin123') {
+                    msgBox.className = "text-red-600 text-sm font-semibold text-center";
+                    msgBox.innerText = "Username sudah digunakan!";
+                    msgBox.classList.remove('hidden');
+                    return;
+                }
+
+                db.pendingUsers.push({ username: user, password: pass });
+                msgBox.className = "text-green-600 text-sm font-semibold text-center";
+                msgBox.innerText = "Berhasil daftar! Tunggu Admin menyetujui, lalu login.";
+                msgBox.classList.remove('hidden');
+                
+                // Clear form
+                document.getElementById('form-register').reset();
+                setTimeout(() => ui.switchLoginTab('login'), 3000);
+            },
+
+            approveUser: (index) => {
+                const userToApprove = db.pendingUsers.splice(index, 1)[0];
+                db.users.push(userToApprove);
+                ui.renderAdminDashboard();
+            },
+
+            logout: () => {
+                currentUser = null;
+                userRole = null;
+                ui.updateNav();
+                document.getElementById('form-login').reset();
+                document.getElementById('login-error').classList.add('hidden');
+                
+                // Hentikan kamera jika sedang jalan
+                interview.stopCamera();
+                
+                ui.showView('view-login');
+                ui.switchLoginTab('login');
+            }
+        };
+
+        // --- 5. INTERVIEW & MEDIA LOGIC ---
+        const interview = {
+            stream: null,
+            recognition: null,
+            currentQIndex: 0,
+            timerInterval: null,
+            timeLeft: 180, // 3 minutes in seconds
+            isRecording: false,
+            currentTranscript: "",
+            userAnswers: [], // Menyimpan jawaban sementara
+
+            checkHardware: async () => {
+                const statusBox = document.getElementById('hw-status');
+                const solutionBox = document.getElementById('hw-solution');
+                const startBtn = document.getElementById('btn-start-interview');
+
+                statusBox.innerHTML = `<p class="font-bold text-blue-600"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Memeriksa...</p>`;
+
+                try {
+                    const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                    // Sukses terkoneksi
+                    statusBox.innerHTML = `
+                        <div class="inline-flex items-center justify-center p-3 rounded-full bg-green-100 text-green-600 mb-2">
+                            <i class="fa-solid fa-video text-2xl mx-3"></i>
+                            <i class="fa-solid fa-microphone text-2xl mx-3"></i>
+                        </div>
+                        <p class="font-bold text-green-600">Perangkat Terkoneksi & Siap</p>
+                    `;
+                    solutionBox.classList.add('hidden');
+                    startBtn.disabled = false;
+                    
+                    // Stop stream sementara buat hemat resource, nanti dinyalakan lg saat mulai
+                    mediaStream.getTracks().forEach(track => track.stop());
+
+                } catch (err) {
+                    console.error("Hardware error:", err);
+                    statusBox.innerHTML = `
+                        <div class="inline-flex items-center justify-center p-3 rounded-full bg-red-100 text-red-600 mb-2">
+                            <i class="fa-solid fa-video-slash text-2xl mx-3"></i>
+                            <i class="fa-solid fa-microphone-slash text-2xl mx-3"></i>
+                        </div>
+                        <p class="font-bold text-red-600">Koneksi Gagal</p>
+                    `;
+                    solutionBox.classList.remove('hidden');
+                    startBtn.disabled = true;
+                }
+            },
+
+            start: async () => {
+                ui.showView('view-interview');
+                interview.currentQIndex = 0;
+                interview.userAnswers = [];
+                
+                // Mulai Kamera
+                try {
+                    interview.stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                    document.getElementById('user-video').srcObject = interview.stream;
+                } catch (err) {
+                    alert("Gagal mengakses kamera di ruang ujian. Pastikan izin diberikan.");
+                }
+
+                // Setup Speech Recognition (Web Speech API)
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (SpeechRecognition) {
+                    interview.recognition = new SpeechRecognition();
+                    interview.recognition.lang = 'id-ID';
+                    interview.recognition.continuous = true;
+                    interview.recognition.interimResults = true;
+
+                    interview.recognition.onresult = (event) => {
+                        let interimTranscript = '';
+                        let finalTranscript = '';
+
+                        for (let i = event.resultIndex; i < event.results.length; i++) {
+                            const transcript = event.results[i][0].transcript;
+                            if (event.results[i].isFinal) {
+                                finalTranscript += transcript + ' ';
+                            } else {
+                                interimTranscript += transcript;
+                            }
+                        }
+                        
+                        interview.currentTranscript += finalTranscript;
+                        
+                        const displayBox = document.getElementById('transcript-text');
+                        displayBox.innerHTML = `<span class="text-gray-800">${interview.currentTranscript}</span> <span class="text-gray-400 italic">${interimTranscript}</span>`;
+                        displayBox.parentElement.scrollTop = displayBox.parentElement.scrollHeight; // auto scroll
+                    };
+                    
+                    interview.recognition.onerror = (e) => console.warn("Speech error:", e.error);
+                } else {
+                    document.getElementById('transcript-text').innerHTML = '<span class="text-red-500">Browser Anda tidak mendukung fitur transkrip suara otomatis. Pastikan menggunakan Chrome/Edge versi terbaru.</span>';
+                }
+
+                interview.loadQuestion();
+            },
+
+            loadQuestion: () => {
+                // Reset state for new question
+                interview.isRecording = false;
+                interview.currentTranscript = "";
+                document.getElementById('transcript-text').innerHTML = '<span class="italic text-gray-400">Klik "Mulai Menjawab" untuk merekam suara...</span>';
+                document.getElementById('q-counter').innerText = `Pertanyaan ${interview.currentQIndex + 1} dari ${questionsList.length}`;
+                document.getElementById('question-text').innerText = questionsList[interview.currentQIndex];
+                
+                // Reset UI Buttons
+                const btnRec = document.getElementById('btn-record');
+                btnRec.innerHTML = '<i class="fa-solid fa-microphone mr-2"></i> Mulai Menjawab';
+                btnRec.classList.remove('bg-red-700', 'animate-pulse');
+                btnRec.classList.remove('hidden');
+                
+                document.getElementById('btn-next-q').classList.add('hidden');
+                document.getElementById('rec-indicator').style.display = 'none';
+                document.getElementById('voice-wave').style.display = 'none';
+                
+                // Reset Timer Display
+                interview.timeLeft = 180;
+                interview.updateTimerDisplay();
+            },
+
+            toggleRecording: () => {
+                if (!interview.isRecording) {
+                    // Mulai Rekam
+                    interview.isRecording = true;
+                    document.getElementById('rec-indicator').style.display = 'block';
+                    document.getElementById('voice-wave').style.display = 'inline-block';
+                    
+                    const btnRec = document.getElementById('btn-record');
+                    btnRec.innerHTML = '<i class="fa-solid fa-stop mr-2"></i> Selesai Menjawab';
+                    btnRec.classList.add('bg-red-700', 'animate-pulse');
+                    
+                    document.getElementById('transcript-text').innerHTML = ""; // bersihkan
+                    
+                    if (interview.recognition) interview.recognition.start();
+                    
+                    // Start Timer
+                    interview.timerInterval = setInterval(() => {
+                        interview.timeLeft--;
+                        interview.updateTimerDisplay();
+                        if (interview.timeLeft <= 0) {
+                            interview.toggleRecording(); // Auto stop jika waktu habis
+                        }
+                    }, 1000);
+
+                } else {
+                    // Berhenti Rekam
+                    interview.isRecording = false;
+                    clearInterval(interview.timerInterval);
+                    document.getElementById('rec-indicator').style.display = 'none';
+                    document.getElementById('voice-wave').style.display = 'none';
+                    
+                    if (interview.recognition) interview.recognition.stop();
+                    
+                    document.getElementById('btn-record').classList.add('hidden');
+                    
+                    const btnNext = document.getElementById('btn-next-q');
+                    btnNext.classList.remove('hidden');
+                    // Ubah teks tombol jika ini pertanyaan terakhir
+                    if (interview.currentQIndex === questionsList.length - 1) {
+                        btnNext.innerHTML = 'Selesaikan Ujian <i class="fa-solid fa-check-double ml-2"></i>';
+                        btnNext.classList.replace('bg-gray-800', 'bg-green-600');
+                    }
+                }
+            },
+
+            updateTimerDisplay: () => {
+                const m = Math.floor(interview.timeLeft / 60).toString().padStart(2, '0');
+                const s = (interview.timeLeft % 60).toString().padStart(2, '0');
+                const timeStr = `${m}:${s}`;
+                const timerEl = document.getElementById('timer');
+                timerEl.innerText = timeStr;
+                
+                if (interview.timeLeft <= 30) {
+                    timerEl.classList.add('text-red-600', 'animate-pulse');
+                } else {
+                    timerEl.classList.remove('text-red-600', 'animate-pulse');
+                    timerEl.classList.add('text-gray-800');
+                }
+            },
+
+            nextQuestion: () => {
+                // Simpan jawaban saat ini
+                interview.userAnswers.push({
+                    q: questionsList[interview.currentQIndex],
+                    transcript: interview.currentTranscript.trim()
+                });
+
+                if (interview.currentQIndex < questionsList.length - 1) {
+                    interview.currentQIndex++;
+                    interview.loadQuestion();
+                } else {
+                    interview.finishInterview();
+                }
+            },
+
+            finishInterview: () => {
+                interview.stopCamera();
+                
+                // Generate Mock AI Analysis based on length of transcript (Simulasi)
+                let totalWords = interview.userAnswers.reduce((acc, curr) => acc + curr.transcript.split(' ').length, 0);
+                let mockAnalysis = "";
+                if (totalWords > 200) {
+                    mockAnalysis = "Kandidat menunjukkan artikulasi yang baik dan ketegasan dalam berpendapat. Ekspresi wajah stabil (Simulasi AI). Tingkat pemahaman ideologi komprehensif.";
+                } else if (totalWords > 50) {
+                    mockAnalysis = "Kandidat menjawab dengan singkat. Cukup normatif. Terdeteksi sedikit keraguan pada mikroekspresi wajah saat pertanyaan terkait toleransi (Simulasi AI).";
+                } else {
+                    mockAnalysis = "Data terlalu sedikit untuk analisis akurat. Kandidat sangat pasif atau terjadi masalah teknis pada mikrofon.";
+                }
+
+                // Simpan ke DB Memory
+                db.results.push({
+                    username: currentUser,
+                    answers: interview.userAnswers,
+                    analysis: mockAnalysis
+                });
+
+                ui.showView('view-finish');
+            },
+
+            stopCamera: () => {
+                if (interview.stream) {
+                    interview.stream.getTracks().forEach(track => track.stop());
+                    interview.stream = null;
+                }
+                if (interview.timerInterval) clearInterval(interview.timerInterval);
+                if (interview.recognition && interview.isRecording) interview.recognition.stop();
+            }
+        };
+
+        // Inisialisasi
+        ui.showView('view-login');
+        
+    </script>
 </body>
 </html>
